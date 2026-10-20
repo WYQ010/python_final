@@ -1,0 +1,5 @@
+# 统一换行 LF（兜底《架构设计》§6 编码规范）
+* text=auto eol=lf
+# 二进制文件不做换行转换（当前不入库，留作兜底）
+*.png binary
+*.zip binary

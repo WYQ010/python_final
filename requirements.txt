@@ -1,0 +1,12 @@
+# Python 期末大作业 · Spaceship Titanic
+# 目标解释器：CPython 3.14.0（Windows x64）
+# 版本于 2026-10-20 定稿：均为实际安装并冒烟验证的版本；pandas 保持 3.0.6（决策①）
+numpy==2.5.4
+pandas==3.0.6
+scipy==1.18.1
+scikit-learn==1.9.1
+matplotlib==3.11.2
+seaborn==0.13.2
+# --- 梯度提升主力模型（《架构设计》§7 建模路线） ---
+xgboost==3.4.1
+lightgbm==4.7.0
