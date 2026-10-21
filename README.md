@@ -8,8 +8,19 @@ Kaggle [Spaceship Titanic](https://www.kaggle.com/competitions/spaceship-titanic
 
 ## 项目状态
 
-- ✅ M0 骨架已完成：包结构、`config.py` / `utils.py` 冻结骨架、CI、本 README；
-- 🚧 M1 模块开发中（分工见《任务分工表.md》）：`python main.py` 端到端入口待 M1 合并后可用。
+- ✅ M0 骨架完成：包结构、`config.py` / `utils.py`、CI、README；
+- ✅ M1 数据轴（loader / preprocessing / features，PR 见提交历史）与模型轴（train / predict / pipeline / main，PR #1）均已合入；
+- ✅ 端到端联调通过：四个注册模型均可 `python main.py --model <名>` 一键出提交文件，落盘校验全绿；
+- 🚧 待办：tests/（测试负责人 T1–T4）、Kaggle 提交与分数记录（A4）、模型调参/集成（M2 可选）。
+
+## 实验记录（5 折 CV Accuracy，seed=42）
+
+| 日期 | 模型 | CV Accuracy | 提交文件 | 榜上分数 | 备注 |
+|---|---|---|---|---|---|
+| 2026-10-21 | logreg | 0.7942 | ✅ | 待提交 | 基线；lbfgs 有收敛警告（max_iter=1000 未加标准化） |
+| 2026-10-21 | xgboost | 0.8119 | ✅ | 待提交 | 默认参数（300 树，lr=0.05） |
+| 2026-10-21 | lightgbm | 0.8102 | ✅ | 待提交 | 默认参数（300 树，lr=0.05） |
+| 2026-10-21 | hist_gb | **0.8123** | ✅ | 待提交 | 全默认参数；两次重跑结果一致（确定性通过） |
 
 ## 快速开始
 
