@@ -10,7 +10,7 @@ from time import perf_counter
 import pandas as pd
 
 from spaceship.config import get_config
-from spaceship.data_loader import load_test, load_train
+from spaceship.data_loader import load_sample_submission, load_test, load_train
 from spaceship.features import FeatureSet, build_features
 from spaceship.predict import make_submission, predict, validate_submission
 from spaceship.preprocessing import preprocess
@@ -59,6 +59,14 @@ def _load_feature_set() -> FeatureSet:
     return feature_set
 
 
+def _validate_template_alignment(feature_set: FeatureSet) -> None:
+    """确认 FeatureSet 的测试 ID 与 Kaggle 提交模板完全同序。"""
+    expected_ids = load_sample_submission()["PassengerId"].astype(str).reset_index(drop=True)
+    actual_ids = feature_set.test_ids.astype(str).reset_index(drop=True)
+    if not actual_ids.equals(expected_ids):
+        raise ValueError("测试集 PassengerId 未与 sample_submission.csv 完全一致或顺序不一致。")
+
+
 def run_full_pipeline(
     *,
     model_name: str | None = None,
@@ -77,6 +85,8 @@ def run_full_pipeline(
     started_at = perf_counter()
 
     feature_set = _load_feature_set()
+    if not cv_only:
+        _validate_template_alignment(feature_set)
     result = train_models(
         feature_set.X_train,
         feature_set.y_train,
@@ -96,7 +106,8 @@ def run_full_pipeline(
             predictions,
             model_name=result.model_name,
         )
-        issues = validate_submission(submission_path, expected_ids=feature_set.test_ids)
+        expected_ids = load_sample_submission()["PassengerId"].astype(str)
+        issues = validate_submission(submission_path, expected_ids=expected_ids)
         if issues:
             raise ValueError("提交文件终检失败：" + "；".join(issues))
         logger.info("提交文件终检通过：%s。", submission_path)

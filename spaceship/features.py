@@ -10,8 +10,6 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from spaceship.data_loader import load_sample_submission
-
 _SPEND_COLS = ["RoomService", "FoodCourt", "ShoppingMall", "Spa", "VRDeck"]
 _CAT_COLS = ["HomePlanet", "Destination", "deck", "side"]
 _NUM_COLS = ["Age", "is_minor", "CryoSleep", "VIP", *_SPEND_COLS,
@@ -67,13 +65,9 @@ def build_features(train_clean: pd.DataFrame, test_clean: pd.DataFrame) -> Featu
     X_tr = X.iloc[: len(tr)].reset_index(drop=True)
     X_te = X.iloc[len(tr):].reset_index(drop=True)
 
-    # 契约⑤：test_ids 与 sample_submission 完全一致且同序（ PassengerId 唯一，按位重排）
-    sample_ids = load_sample_submission()["PassengerId"].astype(str)
-    te_ids = te["PassengerId"].astype(str).reset_index(drop=True)
-    pos = {pid: i for i, pid in enumerate(te_ids)}
-    order = [pos[pid] for pid in sample_ids]      # 缺 id 会 KeyError，契约违规即失败
-    X_te = X_te.iloc[order].reset_index(drop=True)
-    test_ids = sample_ids.reset_index(drop=True).rename("PassengerId")
+    # Feature 模块只依赖传入的两个 DataFrame，便于 CI 使用合成数据进行契约测试。
+    # 与 sample_submission 的文件级同序校验由 pipeline 在端到端流程中完成。
+    test_ids = te["PassengerId"].astype(str).reset_index(drop=True).rename("PassengerId")
 
     y_train = train_clean["Transported"].astype(bool).reset_index(drop=True).rename("Transported")
     return FeatureSet(X_train=X_tr, y_train=y_train, X_test=X_te, test_ids=test_ids)

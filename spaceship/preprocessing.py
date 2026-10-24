@@ -14,11 +14,11 @@ from spaceship.config import get_config
 _SPEND_COLS = ["RoomService", "FoodCourt", "ShoppingMall", "Spa", "VRDeck"]
 
 
-def _fill_mode(s: pd.Series) -> pd.Series:
-    """众数填补（无任何非缺失值时原样返回，属空列兜底）。"""
+def _fill_mode(s: pd.Series, fallback: object) -> pd.Series:
+    """众数填补；整列缺失时使用明确的占位值保持输出无缺失。"""
     if s.notna().any():
         return s.fillna(s.mode().iloc[0])
-    return s
+    return s.fillna(fallback)
 
 
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
@@ -51,9 +51,10 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
 
     # 4) Age
     if cfg.age_fill == "median":
-        out["Age"] = out["Age"].fillna(out["Age"].median())
+        median_age = out["Age"].median()
+        out["Age"] = out["Age"].fillna(0.0 if pd.isna(median_age) else median_age)
     elif cfg.age_fill == "mode":
-        out["Age"] = _fill_mode(out["Age"])
+        out["Age"] = _fill_mode(out["Age"], 0.0)
     else:  # zero
         out["Age"] = out["Age"].fillna(0.0)
 
@@ -61,11 +62,11 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     if cfg.homeplanet_fill == "unknown":
         out["HomePlanet"] = out["HomePlanet"].fillna("Unknown")
     else:  # mode
-        out["HomePlanet"] = _fill_mode(out["HomePlanet"])
+        out["HomePlanet"] = _fill_mode(out["HomePlanet"], "Unknown")
     if cfg.destination_fill == "unknown":
         out["Destination"] = out["Destination"].fillna("Unknown")
     else:  # mode
-        out["Destination"] = _fill_mode(out["Destination"])
+        out["Destination"] = _fill_mode(out["Destination"], "Unknown")
 
     # 6) Cabin / Name 占位（Cabin 占位串可被后续 deck/num/side 拆分统一处理）
     out["Cabin"] = out["Cabin"].fillna(cfg.cabin_placeholder)
@@ -74,5 +75,8 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     # 7) 布尔化（此时两列已无缺失，astype 安全）
     out["CryoSleep"] = out["CryoSleep"].astype(bool)
     out["VIP"] = out["VIP"].astype(bool)
+
+    # CryoSleep 的业务含义要求消费始终为 0；对异常原始记录同样落实该不变量。
+    out.loc[out["CryoSleep"], _SPEND_COLS] = 0.0
 
     return out
