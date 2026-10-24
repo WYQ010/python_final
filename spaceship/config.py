@@ -40,7 +40,7 @@ class PreprocessConfig:
 class ModelConfig:
     default_model: str = "logreg"
     params: dict = field(default_factory=lambda: {
-        "logreg": {"max_iter": 1000},
+        "logreg": {"max_iter": 1000, "solver": "newton-cholesky"},
         "hist_gb": None,                                   # None = 全默认
         "xgboost": {"n_estimators": 300, "learning_rate": 0.05},
         "lightgbm": {"n_estimators": 300, "learning_rate": 0.05},
