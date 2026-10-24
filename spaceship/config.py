@@ -41,7 +41,11 @@ class ModelConfig:
     default_model: str = "logreg"
     params: dict = field(default_factory=lambda: {
         "logreg": {"max_iter": 1000, "solver": "newton-cholesky"},
-        "hist_gb": None,                                   # None = 全默认
+        # 2026-10-25 采纳：小叶+强正则组合（源自 ChatGPT 对照工程交叉验证，
+        # 50 折配对 +0.0032 达采用线；全默认 0.8123 → 本组合 0.8144）
+        "hist_gb": {"learning_rate": 0.06, "max_iter": 300, "max_leaf_nodes": 15,
+                    "min_samples_leaf": 25, "l2_regularization": 3.0,
+                    "early_stopping": False, "random_state": 42},
         "xgboost": {"n_estimators": 300, "learning_rate": 0.05},
         "lightgbm": {"n_estimators": 300, "learning_rate": 0.05},
         "rf": {"n_estimators": 500},                       # 集成成员：随机森林
