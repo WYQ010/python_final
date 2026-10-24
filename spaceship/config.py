@@ -44,6 +44,32 @@ class ModelConfig:
         "hist_gb": None,                                   # None = 全默认
         "xgboost": {"n_estimators": 300, "learning_rate": 0.05},
         "lightgbm": {"n_estimators": 300, "learning_rate": 0.05},
+        "rf": {"n_estimators": 500},                       # 集成成员：随机森林
+        # 随机化 GBDT 变体（行/列子采样 × 不同种子）：同族低相关集成成员
+        "lightgbm_sto_s42": {"n_estimators": 300, "learning_rate": 0.05,
+                             "bagging_fraction": 0.8, "bagging_freq": 1,
+                             "feature_fraction": 0.8, "random_state": 42},
+        "lightgbm_sto_s7": {"n_estimators": 300, "learning_rate": 0.05,
+                            "bagging_fraction": 0.8, "bagging_freq": 1,
+                            "feature_fraction": 0.8, "random_state": 7},
+        "lightgbm_sto_s123": {"n_estimators": 300, "learning_rate": 0.05,
+                              "bagging_fraction": 0.8, "bagging_freq": 1,
+                              "feature_fraction": 0.8, "random_state": 123},
+        "hist_gb_sto_s42": {"max_features": 0.8, "random_state": 42},
+        "hist_gb_sto_s7": {"max_features": 0.8, "random_state": 7},
+        # 软投票集成：GBDT 系 7 成员 + rf + logreg 等权（10 折 OOF 筛选 + 多协议验证）
+        "ensemble_soft": {
+            "members": ["hist_gb", "lightgbm",
+                        "lightgbm_sto_s42", "lightgbm_sto_s7", "lightgbm_sto_s123",
+                        "hist_gb_sto_s42", "hist_gb_sto_s7",
+                        "rf", "logreg"],
+            "weights": None,                               # None = 等权
+        },
+        # OOF 堆叠：一层成员概率由内部 CV 生成（无泄漏），二层 logreg
+        "stacking": {
+            "members": ["hist_gb", "xgboost", "lightgbm", "logreg", "rf"],
+            "final": {"max_iter": 1000},
+        },
     })
 
 

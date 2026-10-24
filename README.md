@@ -22,6 +22,8 @@ Kaggle [Spaceship Titanic](https://www.kaggle.com/competitions/spaceship-titanic
 | 2026-10-21 | xgboost | 0.8119 | ✅ | — | 默认参数（300 树，lr=0.05） |
 | 2026-10-21 | lightgbm | 0.8102 | ✅ | — | 默认参数（300 树，lr=0.05） |
 | 2026-10-21 | hist_gb | **0.8123** | ✅ | **889 / 1726**（2026-10-24 首投） | 全默认参数；确定性通过 |
+| 2026-10-24 | ensemble_soft | 0.8135 | ✅（未投榜） | — | 9 成员等权软投票（GBDT 系 7 + rf + logreg），`iter/ensemble` 分支；10 折 0.8169（+0.0035），确定性通过 |
+| 2026-10-24 | stacking | 0.8126 | —（cv-only） | — | OOF 堆叠（3 GBDT + logreg + rf → logreg 二层），不敌加权/等权投票 |
 
 ## 迭代记录（2026-10-24，本地 CV 协议：5 折分层、seed=42、n_jobs=1）
 
@@ -41,6 +43,8 @@ Kaggle [Spaceship Titanic](https://www.kaggle.com/competitions/spaceship-titanic
 - **logreg 修复**：lbfgs 因特征未标准化在 max_iter 3000/5000 仍不收敛；改 solver=newton-cholesky（仅改 config 值，二阶法对量纲不敏感）→ 零警告，CV 0.7942→0.7939（噪声内）。
 
 **第三轮结论**：GBDT 默认参数已在重复 CV 意义下最优（~0.811），维持 hist_gb 全默认为最优单模型；调参方向正式关闭，收益只能来自特征/填补/集成轴。
+
+**第四轮·集成与堆叠（iter/ensemble 分支，2026-10-24）**：六个候选成员 10 折 OOF 相关性分析显示三个确定性 GBDT 彼此相关 0.986+（等权投票负向的主因），多样性只能来自 logreg（0.90）/rf（0.93）/extratrees（0.88）。依次尝试：① 权重网格软投票（TOP 在 10 折 0.8184，但标准 5 折仅 0.8113，证实为对 OOF 的选择偏差，弃用）；② 单模型概率阈值搜索（hist_gb@0.54 在 10 折 +0.003，换 CV 协议全线回落 ≤0.812，种子过拟合，弃用）；③ OOF stacking（内层 5 折生元特征，logreg 二层）0.8126，不敌投票；④ **随机化 GBDT 多种子成员**（bagging/feature_fraction=0.8 × 3 种子 lgbm + max_features=0.8 × 2 种子 hist_gb）——单体不降且互相去相关，与 hist_gb、lightgbm、rf、logreg 组成 **9 成员等权软投票 ensemble_soft**：标准 5 折 0.8135、10 折 0.8169（基线 0.8134，+0.0035），换种子 5 折（s7/s123）0.8161/0.8130 均 ≥ 基线（0.8136/0.8128），四协议均值 +0.0019；连续两次运行逐折一致。继续加成员（6 个 lgbm 种子 / rf 1500 树）反而稀释（0.8144~0.8155），已饱和。**结论**：集成收益真实但温和——10 折口径 +0.0035 达"真实提升"线，标准 5 折口径 +0.0012 在 ±0.005 噪声带内；ensemble_soft/stacking 已按接口契约注册进 `MODEL_REGISTRY`，`python main.py --model ensemble_soft` 一键可跑，是否投榜/合并由组内决定。
 
 ## 快速开始
 
@@ -86,7 +90,7 @@ pytest    # 契约测试用合成数据，无需 data/（CI 同款）；E2E 测�
 
 ## 协作约定（摘要）
 
-- **Git 流程**：`main` 受保护；feature 分支开发 → 发 PR → **至少一人 review** → 合并。逐步操作见《组员接入指南.md》；
+- **Git 流程**：`main` 未设分支保护（决策④），允许直接推送；推荐 feature 分支开发 → 发 PR → **至少一人 review** → 合并。逐步操作见《组员接入指南.md》；
 - **commit message**："模块: 一句话" 简式，如 `features: 拆分 deck/side`；
 - **禁止入库**：`data/`、`outputs/`、zip 与过程文档均已被 `.gitignore` 排除（Kaggle 数据条款 + 隐私），请勿 `git add -f` 强行加入；
 - **环境**：Python 3.14.0，依赖一律钉版本（`requirements.txt`）；`kaggle` CLI 仅取数用，不属于工程依赖。
