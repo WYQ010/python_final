@@ -54,6 +54,15 @@ Kaggle [Spaceship Titanic](https://www.kaggle.com/competitions/spaceship-titanic
 - **真因 = ChatGPT 的 hist_gb 超参组合**（max_leaf_nodes=15 + l2_regularization=3.0 + lr=0.06 + max_iter=300 + min_samples_leaf=25，小叶+强正则）：在我方 32 特征上配对 **+0.0032（33/50）达采用线**，标准口径 0.8123 → **0.8144**，**已采纳进 config.models.params["hist_gb"]**。第一轮调参网格只扫了 31 叶/弱正则角落——第三轮"参数饱和"结论修正为"**常规网格饱和，非常规正则组合仍有真增益**"；
 - 采纳后 ensemble_soft（成员含 hist_gb，同步受益）0.8135 < 0.8144，**当前最优单模型 = hist_gb（CG 参数）0.8144**，第二榜候选提交文件已生成待投。
 
+**第六轮·A2 类别三态与填补分布（iter2/preprocess-a2 分支，2026-10-25，hist_gb CG 参数，基准标准 5 折 0.8144，全部经 50 折配对检验裁决）**：交叉对比中最后一项未实验的吸收项 A2（缺失作为类别值 Unknown 进入独热），六变体 + 一信息性对照：
+
+- **A2-lite（HomePlanet/Destination 填 Unknown，免契约）**：配对 +0.0006（24/48，t=0.75）纯噪声，标准口径反降至 0.8135——不采纳，config 维持众数填补；
+- **A2-full（CryoSleep/VIP 三态，缺失保留 Unknown 不猜）**：CryoSleep 三态 -0.0006、VIP 三态 +0.0002、双三态 -0.0011（21/47）——负向，**不触发契约变更**（§3.2 第 3 条"纯 bool"维持）；实验全程本地变体类模拟三态，正式代码零改动；
+- **CryoSleep 填补规则对照（我方语义 vs ChatGPT 语义）**：positive_only（仅正消费→False，全零/缺消费保 Unknown，217 缺失 = 119 False + 98 Unknown）单独 -0.0009，叠加 A2-lite 后对 A2-lite -0.0014（16/48，t=-1.96）——现行 spend_zero 规则（全零消费→True，EDA 87/217）确认最优；
+- **折内 Age 中位数对照（信息性）**：与全局中位数 50 折逐折全平（各折中位数恒等于全局 27.0，特征逐位一致）Δ=0.0000——全局填补无泄漏影响。
+
+**第六轮结论**：A2 轴全线证伪——缺失占比仅 2%~2.5%，Unknown 独热新列的信号不敌其引入的稀疏切分，对正则化 GBDT 无增益。与 A1（缺失标记中性）合并归档：**预处理轴（填补策略/缺失编码）正式关闭**，收益仅存于已采纳的 hist_gb CG 参数（0.8144）与集成轴；config 与提交文件维持不变。
+
 ## 快速开始
 
 环境要求：Python 3.14（Windows x64；语法基线 ≥3.10）、git。
