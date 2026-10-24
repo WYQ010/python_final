@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable
 
 import joblib
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.ensemble import (
+    HistGradientBoostingClassifier,
+    RandomForestClassifier,
+    StackingClassifier,
+    VotingClassifier,
+)
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold, cross_val_score
 
@@ -35,44 +41,99 @@ def _model_params(model_name: str) -> dict[str, Any]:
     return dict(params or {})
 
 
-def _build_logreg() -> LogisticRegression:
+def _build_logreg(model_name: str = "logreg") -> LogisticRegression:
     """构造固定随机种子的逻辑回归基线模型。"""
     cfg = get_config()
-    params = _model_params("logreg")
+    params = _model_params(model_name)
     params.setdefault("random_state", cfg.seed)
     return LogisticRegression(**params)
 
 
-def _build_hist_gb() -> HistGradientBoostingClassifier:
+def _build_hist_gb(model_name: str = "hist_gb") -> HistGradientBoostingClassifier:
     """构造固定随机种子的 sklearn 直方图梯度提升模型。"""
     cfg = get_config()
-    params = _model_params("hist_gb")
+    params = _model_params(model_name)
     params.setdefault("random_state", cfg.seed)
     return HistGradientBoostingClassifier(**params)
 
 
-def _build_xgboost() -> Any:
+def _build_xgboost(model_name: str = "xgboost") -> Any:
     """按需导入并构造 XGBoost 分类器，避免未使用时产生额外依赖。"""
     from xgboost import XGBClassifier
 
     cfg = get_config()
-    params = _model_params("xgboost")
+    params = _model_params(model_name)
     params.setdefault("random_state", cfg.seed)
     params.setdefault("n_jobs", 1)
     params.setdefault("eval_metric", "logloss")
     return XGBClassifier(**params)
 
 
-def _build_lightgbm() -> Any:
+def _build_lightgbm(model_name: str = "lightgbm") -> Any:
     """按需导入并构造 LightGBM 分类器，避免未使用时产生额外依赖。"""
     from lightgbm import LGBMClassifier
 
     cfg = get_config()
-    params = _model_params("lightgbm")
+    params = _model_params(model_name)
     params.setdefault("random_state", cfg.seed)
     params.setdefault("n_jobs", 1)
     params.setdefault("verbosity", -1)
     return LGBMClassifier(**params)
+
+
+def _build_rf() -> RandomForestClassifier:
+    """构造固定随机种子的随机森林模型（集成成员，单线程保确定性）。"""
+    cfg = get_config()
+    params = _model_params("rf")
+    params.setdefault("n_estimators", 500)
+    params.setdefault("random_state", cfg.seed)
+    params.setdefault("n_jobs", 1)
+    return RandomForestClassifier(**params)
+
+
+def _build_ensemble_soft() -> VotingClassifier:
+    """按 config.models.params['ensemble_soft'] 组装软投票集成体。
+
+    成员与权重全部来自配置（weights 为 None 时等权）；成员经注册表复用各自配置，
+    随机源由各成员工厂显式 seed。
+    """
+    params = _model_params("ensemble_soft")
+    members = params.get("members") or []
+    if not members:
+        raise ValueError(
+            "ensemble_soft 配置缺少 members 列表；请在 config.models.params 中补全。"
+        )
+    estimators = [(name, _build_model(name)) for name in members]
+    weights = params.get("weights")
+    return VotingClassifier(
+        estimators=estimators, voting="soft", weights=weights, n_jobs=1,
+    )
+
+
+def _build_stacking() -> StackingClassifier:
+    """按 config.models.params['stacking'] 组装 OOF 堆叠集成体。
+
+    一层成员的元特征由 StackingClassifier 内部交叉验证生成（cross_val_predict 式，
+    不用全量拟合概率喂二层，无泄漏）；二层为逻辑回归。
+    """
+    cfg = get_config()
+    params = _model_params("stacking")
+    members = params.get("members") or []
+    if not members:
+        raise ValueError(
+            "stacking 配置缺少 members 列表；请在 config.models.params 中补全。"
+        )
+    final_params = dict(params.get("final") or {"max_iter": 1000})
+    estimators = [(name, _build_model(name)) for name in members]
+    return StackingClassifier(
+        estimators=estimators,
+        final_estimator=LogisticRegression(**final_params),
+        cv=StratifiedKFold(
+            n_splits=cfg.cv.n_splits, shuffle=cfg.cv.shuffle, random_state=cfg.seed,
+        ),
+        stack_method="predict_proba",
+        n_jobs=1,
+    )
 
 
 MODEL_REGISTRY: dict[str, Callable[[], Any]] = {
@@ -80,6 +141,15 @@ MODEL_REGISTRY: dict[str, Callable[[], Any]] = {
     "hist_gb": _build_hist_gb,
     "xgboost": _build_xgboost,
     "lightgbm": _build_lightgbm,
+    "rf": _build_rf,
+    # 随机化 GBDT 变体：同族不同种子/子采样，作为集成多样性成员（参数见 config）
+    "lightgbm_sto_s42": partial(_build_lightgbm, "lightgbm_sto_s42"),
+    "lightgbm_sto_s7": partial(_build_lightgbm, "lightgbm_sto_s7"),
+    "lightgbm_sto_s123": partial(_build_lightgbm, "lightgbm_sto_s123"),
+    "hist_gb_sto_s42": partial(_build_hist_gb, "hist_gb_sto_s42"),
+    "hist_gb_sto_s7": partial(_build_hist_gb, "hist_gb_sto_s7"),
+    "ensemble_soft": _build_ensemble_soft,
+    "stacking": _build_stacking,
 }
 
 

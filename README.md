@@ -21,6 +21,8 @@ Kaggle [Spaceship Titanic](https://www.kaggle.com/competitions/spaceship-titanic
 | 2026-10-21 | xgboost | 0.8119 | ✅ | — | 默认参数（300 树，lr=0.05） |
 | 2026-10-21 | lightgbm | 0.8102 | ✅ | — | 默认参数（300 树，lr=0.05） |
 | 2026-10-21 | hist_gb | **0.8123** | ✅ | **889 / 1726**（2026-10-24 首投） | 全默认参数；确定性通过 |
+| 2026-10-24 | ensemble_soft | 0.8135 | ✅（未投榜） | — | 9 成员等权软投票（GBDT 系 7 + rf + logreg），`iter/ensemble` 分支；10 折 0.8169（+0.0035），确定性通过 |
+| 2026-10-24 | stacking | 0.8126 | —（cv-only） | — | OOF 堆叠（3 GBDT + logreg + rf → logreg 二层），不敌加权/等权投票 |
 
 ## 迭代记录（2026-10-24，本地 CV 协议：5 折分层、seed=42、n_jobs=1）
 
@@ -29,6 +31,8 @@ Kaggle [Spaceship Titanic](https://www.kaggle.com/competitions/spaceship-titanic
 **第二轮·特征消融（单因素归因）**：在 32 特征基线上逐项添加——pp_num(组内序号) 0.8111、组聚合 spend/age 0.8097、age_bin+deck_side 0.8102、surname_freq 0.8115、客舱组填补 0.8110、全部附加 0.8097、全部+客舱组填补 0.8098。**全部中性偏负**。
 
 **结论**：当前特征集 + 单一 GBDT 已在 ~0.812 饱和；CV 单种子噪声约 ±0.005，任何小于此幅度的"提升"不可信。后续迭代应转向：特征**选择**（删弱而非加新）、更聪明的填补分布、集成/堆叠、以及用 10 折/重复 CV 降噪声后再比较。多分支并行迭代已启动（见各 `iter/*` 分支）。
+
+**第三轮·集成与堆叠（iter/ensemble 分支，2026-10-24）**：六个候选成员 10 折 OOF 相关性分析显示三个确定性 GBDT 彼此相关 0.986+（等权投票负向的主因），多样性只能来自 logreg（0.90）/rf（0.93）/extratrees（0.88）。依次尝试：① 权重网格软投票（TOP 在 10 折 0.8184，但标准 5 折仅 0.8113，证实为对 OOF 的选择偏差，弃用）；② 单模型概率阈值搜索（hist_gb@0.54 在 10 折 +0.003，换 CV 协议全线回落 ≤0.812，种子过拟合，弃用）；③ OOF stacking（内层 5 折生元特征，logreg 二层）0.8126，不敌投票；④ **随机化 GBDT 多种子成员**（bagging/feature_fraction=0.8 × 3 种子 lgbm + max_features=0.8 × 2 种子 hist_gb）——单体不降且互相去相关，与 hist_gb、lightgbm、rf、logreg 组成 **9 成员等权软投票 ensemble_soft**：标准 5 折 0.8135、10 折 0.8169（基线 0.8134，+0.0035），换种子 5 折（s7/s123）0.8161/0.8130 均 ≥ 基线（0.8136/0.8128），四协议均值 +0.0019；连续两次运行逐折一致。继续加成员（6 个 lgbm 种子 / rf 1500 树）反而稀释（0.8144~0.8155），已饱和。**结论**：集成收益真实但温和——10 折口径 +0.0035 达"真实提升"线，标准 5 折口径 +0.0012 在 ±0.005 噪声带内；ensemble_soft/stacking 已按接口契约注册进 `MODEL_REGISTRY`，`python main.py --model ensemble_soft` 一键可跑，是否投榜/合并由组内决定。
 
 ## 快速开始
 
