@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 import joblib
+import numpy as np
 import pandas as pd
+from sklearn.base import BaseEstimator, ClassifierMixin, clone
 from sklearn.ensemble import (
     HistGradientBoostingClassifier,
     RandomForestClassifier,
@@ -136,6 +138,51 @@ def _build_stacking() -> StackingClassifier:
     )
 
 
+class _KFoldProbaAverage(BaseEstimator, ClassifierMixin):
+    """持有 K 个折模型、预测期取概率均值的包装器（投榜变体专用）。
+
+    fit 在训练数据内部做 K 折切分并逐折克隆训练 base_estimator；
+    predict_proba 返回各折模型概率的等权均值——与单模型相比 CV 口径
+    基本不变，价值在测试期预测方差缩减（第六轮实验定位，非 CV 增益主张）。
+    显式 seed、单线程，保证同种子逐折一致。
+    """
+
+    def __init__(self, base_estimator: Any, n_splits: int = 5, random_state: int = 42):
+        self.base_estimator = base_estimator
+        self.n_splits = n_splits
+        self.random_state = random_state
+
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "_KFoldProbaAverage":
+        splitter = StratifiedKFold(
+            n_splits=self.n_splits, shuffle=True, random_state=self.random_state,
+        )
+        self.fold_models_: list[Any] = []
+        for train_idx, _ in splitter.split(X, y):
+            fold_model = clone(self.base_estimator)
+            fold_model.fit(X.iloc[train_idx], y.iloc[train_idx])
+            self.fold_models_.append(fold_model)
+        self.classes_ = self.fold_models_[0].classes_
+        return self
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        probas = [model.predict_proba(X) for model in self.fold_models_]
+        return np.mean(probas, axis=0)
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        return self.classes_[np.argmax(self.predict_proba(X), axis=1)]
+
+
+def _build_hist_gb_cg_avg() -> _KFoldProbaAverage:
+    """构造 hist_gb（CG 参数）五折概率平均变体（参数见 config）。"""
+    cfg = get_config()
+    params = _model_params("hist_gb_cg_avg")
+    return _KFoldProbaAverage(
+        base_estimator=_build_hist_gb("hist_gb"),
+        n_splits=int(params.get("n_splits", 5)),
+        random_state=cfg.seed,
+    )
+
+
 MODEL_REGISTRY: dict[str, Callable[[], Any]] = {
     "logreg": _build_logreg,
     "hist_gb": _build_hist_gb,
@@ -150,6 +197,8 @@ MODEL_REGISTRY: dict[str, Callable[[], Any]] = {
     "hist_gb_sto_s7": partial(_build_hist_gb, "hist_gb_sto_s7"),
     "ensemble_soft": _build_ensemble_soft,
     "stacking": _build_stacking,
+    # 五折概率平均投榜变体：CV 与 hist_gb 持平，测试期概率取五折模型均值
+    "hist_gb_cg_avg": _build_hist_gb_cg_avg,
 }
 
 
