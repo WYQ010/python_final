@@ -74,6 +74,9 @@ class ModelConfig:
             "members": ["hist_gb", "xgboost", "lightgbm", "logreg", "rf"],
             "final": {"max_iter": 1000},
         },
+        # 五折概率平均投榜变体：基模型复用 hist_gb（CG 参数），CV 持平、
+        # 只缩减测试期预测方差（第六轮：集成 CG 化未达配对采用线，此为投榜实验）
+        "hist_gb_cg_avg": {"n_splits": 5},
     })
 
 
