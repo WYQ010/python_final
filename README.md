@@ -25,7 +25,7 @@ Kaggle [Spaceship Titanic](https://www.kaggle.com/competitions/spaceship-titanic
 | 2026-10-25 | hist_gb（CG 正则参数） | **0.8144** | ✅ | **656 / 1726**（2026-10-25 第二投；首投 889） | 小叶15+L2=3.0+lr0.06+300轮，50 折配对 **+0.0032** 达采用线（源自 ChatGPT 对照工程交叉验证，详见第五轮）；**当前最优单模型** |
 | 2026-10-24 | ensemble_soft | 0.8135 | ✅（未投榜） | — | 9 成员等权软投票（GBDT 系 7 + rf + logreg），`iter/ensemble` 分支；10 折 0.8169（+0.0035），确定性通过 |
 | 2026-10-24 | stacking | 0.8126 | —（cv-only） | — | OOF 堆叠（3 GBDT + logreg + rf → logreg 二层），不敌加权/等权投票 |
-| 2026-10-25 | hist_gb_cg_avg | 0.8131 | ✅（未投榜） | — | 五折概率平均投榜变体（hist_gb CG 参数 × 5 折模型概率均值），`iter2/ensemble-cg` 分支；CV 持平略低属预期，不主张 CV 增益，见第六轮 |
+| 2026-10-25 | hist_gb_cg_avg | 0.8131 | ✅ | **241 / 1726**（2026-11-13 第三投；656→241） | 五折概率平均投榜变体（hist_gb CG 参数 × 5 折模型概率均值），`iter2/ensemble-cg` 分支；CV 持平略低属预期，**榜上兑现了测试期方差缩减的价值**，见第六轮；**当前榜上最优** |
 
 ## 迭代记录（2026-10-24，本地 CV 协议：5 折分层、seed=42、n_jobs=1）
 
